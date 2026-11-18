@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca Virtual - Sistema Distribuído</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        h1 { text-align: center; color: #2c3e50; }
+        .card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            flex: 1;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+        }
+        .btn-add { background-color: #27ae60; }
+        .btn-add:hover { background-color: #219150; }
+        .btn-emprestar { background-color: #2980b9; }
+        .btn-emprestar:hover { background-color: #2471a3; }
+        .btn-devolver { background-color: #f39c12; }
+        .btn-devolver:hover { background-color: #d68910; }
+        .btn-delete { background-color: #c0392b; }
+        .btn-delete:hover { background-color: #a93226; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th { background-color: #2c3e50; color: white; }
+        .acoes { display: flex; gap: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>📚 Biblioteca Virtual</h1>
+
+    <!-- Formulário de Cadastro (POST) -->
+    <div class="card">
+        <h3>Cadastrar Novo Livro</h3>
+        <div class="form-group">
+            <input type="number" id="id" placeholder="ID (ex: 4)" required>
+            <input type="text" id="titulo" placeholder="Título do Livro" required>
+            <input type="text" id="autor" placeholder="Autor" required>
+            <input type="number" id="qtd" placeholder="Quantidade" required>
+            <button class="btn-add" onclick="adicionarLivro()">Cadastrar</button>
+        </div>
+    </div>
+
+    <!-- Tabela de Livros (GET, PUT, DELETE) -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Acervo Disponível</h3>
+            <button class="btn-emprestar" onclick="carregarLivros()">🔄 Atualizar Lista</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título</th>
+                    <th>Autor</th>
+                    <th>Disponíveis</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-livros"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // 1. GET -> Busca e exibe os livros
+        async function carregarLivros() {
+            const resposta = await fetch('/livros');
+            const livros = await resposta.json();
+            const tbody = document.getElementById('tabela-livros');
+            tbody.innerHTML = '';
+
+            livros.forEach(livro => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${livro.id}</td>
+                        <td><strong>${livro.titulo}</strong></td>
+                        <td>${livro.autor}</td>
+                        <td>${livro.quantidade_disponivel} un.</td>
+                        <td class="acoes">
+                            <button class="btn-emprestar" onclick="alterarEstoque(${livro.id}, '${livro.titulo}', '${livro.autor}', ${livro.quantidade_disponivel - 1})">Emprestar</button>
+                            <button class="btn-devolver" onclick="alterarEstoque(${livro.id}, '${livro.titulo}', '${livro.autor}', ${livro.quantidade_disponivel + 1})">Devolver</button>
+                            <button class="btn-delete" onclick="deletarLivro(${livro.id})">Excluir</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // 2. POST -> Cadastra um novo livro
+        async function adicionarLivro() {
+            const id = parseInt(document.getElementById('id').value);
+            const titulo = document.getElementById('titulo').value;
+            const autor = document.getElementById('autor').value;
+            const quantidade_disponivel = parseInt(document.getElementById('qtd').value);
+
+            if (!id || !titulo || !autor || isNaN(quantidade_disponivel)) {
+                alert("Preencha todos os campos corretamente!");
+                return;
+            }
+
+            const resposta = await fetch('/livros', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, titulo, autor, quantidade_disponivel })
+            });
+
+            if (resposta.ok) {
+                document.getElementById('id').value = '';
+                document.getElementById('titulo').value = '';
+                document.getElementById('autor').value = '';
+                document.getElementById('qtd').value = '';
+                carregarLivros();
+            } else {
+                const erro = await resposta.json();
+                alert("Erro: " + erro.detail);
+            }
+        }
+
+        // 3. PUT -> Atualiza quantidade (Emprestar / Devolver)
+        async function alterarEstoque(id, titulo, autor, novaQtd) {
+            if (novaQtd < 0) {
+                alert("Este livro está sem estoque disponível!");
+                return;
+            }
+
+            await fetch(`/livros/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, titulo, autor, quantidade_disponivel: novaQtd })
+            });
+
+            carregarLivros();
+        }
+
+        // 4. DELETE -> Remove livro
+        async function deletarLivro(id) {
+            if (!confirm("Deseja realmente excluir este livro?")) return;
+
+            await fetch(`/livros/${id}`, { method: 'DELETE' });
+            carregarLivros();
+        }
+
+        // Carrega os livros automaticamente ao abrir a página
+        carregarLivros();
+    </script>
+</body>
+</html>
